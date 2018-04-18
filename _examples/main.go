@@ -25,8 +25,15 @@ func main() {
 		}
 	},
 	"test": {},
-	"list": [1,2,3,4],
-	"emtyList": []
+	"list": [1,2,3,4,],
+	"emtyList": [],
+	"bool": true,
+	"float": 1.0,
+	"float": .0e-45,
+	"float": .0e45,
+	"float": +.0,
+	"float": +0e45,
+	"null": null,
 }`
 
 	p := walkjson.New()

@@ -10,10 +10,13 @@ const runeEOF = '\uffff'
 // -
 const (
 	Error = iota
+	Bool
 	Integer
+	Float
 	String
 	List
 	Group
+	Null
 )
 const (
 	unknown = iota
@@ -25,6 +28,10 @@ const (
 	colon
 	number
 	str
+	tru
+	fals
+	float
+	null
 )
 
 // TParser -
@@ -138,6 +145,30 @@ func (o *TParser) nextToken() tToken {
 			t.Type = colon
 			t.Value = string(r)
 			o.nextRune()
+		case 'n':
+			if o.nextRune() != 'u' || o.nextRune() != 'l' || o.nextRune() != 'l' {
+				o.setError(fmt.Errorf("expected null"))
+				return t
+			}
+			o.nextRune()
+			t.Type = null
+			t.Value = "null"
+		case 't':
+			if o.nextRune() != 'r' || o.nextRune() != 'u' || o.nextRune() != 'e' {
+				o.setError(fmt.Errorf("expected true"))
+				return t
+			}
+			o.nextRune()
+			t.Type = tru
+			t.Value = "true"
+		case 'f':
+			if o.nextRune() != 'a' || o.nextRune() != 'l' || o.nextRune() != 's' || o.nextRune() != 'e' {
+				o.setError(fmt.Errorf("expected false"))
+				return t
+			}
+			o.nextRune()
+			t.Type = fals
+			t.Value = "false"
 		case '"':
 			t.Type = str
 			r = o.nextRune()
@@ -149,9 +180,49 @@ func (o *TParser) nextToken() tToken {
 			o.nextRune()
 		case '+', '-', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9':
 			t.Type = number
+			if r == '+' || r == '-' {
+				t.Value += string(r)
+				r = o.nextRune()
+			}
 			for r != runeEOF && r >= '0' && r <= '9' {
 				t.Value += string(r)
 				r = o.nextRune()
+			}
+			if r != '.' && r != 'e' && r != 'E' {
+				return t
+			}
+			fallthrough
+		case '.':
+			t.Type = float
+			if r == '.' {
+				t.Value += string(r)
+				r = o.nextRune()
+				if r < '0' || r > '9' {
+					o.setError(fmt.Errorf("invalid floating point value (expectef digit after '.')"))
+					t.Type = 0
+					return t
+				}
+				for r != runeEOF && r >= '0' && r <= '9' {
+					t.Value += string(r)
+					r = o.nextRune()
+				}
+			}
+			if r == 'e' || r == 'E' {
+				t.Value += string(r)
+				r = o.nextRune()
+				if r == '+' || r == '-' {
+					t.Value += string(r)
+					r = o.nextRune()
+				}
+				if r < '0' || r > '9' {
+					o.setError(fmt.Errorf("invalid floating point value (expectid digit after E)"))
+					t.Type = 0
+					return t
+				}
+				for r != runeEOF && r >= '0' && r <= '9' {
+					t.Value += string(r)
+					r = o.nextRune()
+				}
 			}
 		} // case
 		// fmt.Printf("token %v\n", t)
@@ -177,6 +248,7 @@ func (o *TParser) readValType() int {
 	typ := 0
 	o.mustBe(colon)
 	t := o.nextToken()
+	o.curValue = t.Value
 	switch t.Type {
 	case lblock:
 		typ = Group
@@ -184,10 +256,14 @@ func (o *TParser) readValType() int {
 		typ = List
 	case str:
 		typ = String
-		o.curValue = t.Value
 	case number:
 		typ = Integer
-		o.curValue = t.Value
+	case tru, fals:
+		typ = Bool
+	case float:
+		typ = Float
+	case null:
+		typ = Null
 	}
 	// fmt.Printf("valType = %v\n", typ)
 	return typ
@@ -206,7 +282,7 @@ func (o *TParser) readList() []string {
 			return list
 		case rbr:
 			return list
-		case number, str:
+		case number, str, tru, fals, float, null:
 			list = append(list, t.Value)
 			t = o.nextToken()
 			switch t.Type {
@@ -242,7 +318,7 @@ func (o *TParser) readBlock() {
 			key := t.Value
 			typ := o.readValType()
 			switch typ {
-			case Integer, String:
+			case Integer, String, Bool, Float, Null:
 				ok = o.fn(typ, o.path, key, o.curValue)
 			case List:
 				list := o.readList()
