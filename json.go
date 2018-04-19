@@ -3,6 +3,7 @@ package walkjson
 import (
 	"bytes"
 	"fmt"
+	"strconv"
 )
 
 const runeEOF = '\uffff'
@@ -275,15 +276,28 @@ func (o *TParser) readList() []string {
 		return list
 	}
 	t := o.nextToken()
-	for o.err == nil {
+	for idx := 0; o.err == nil; idx++ {
 		switch t.Type {
 		default:
 			o.setError(fmt.Errorf("read list: unexpected %q", t.Value))
 			return list
 		case rbr:
 			return list
-		case number, str, tru, fals, float, null:
-			list = append(list, t.Value)
+		case number, str, tru, fals, float, null, lblock:
+			switch t.Type {
+			default:
+				list = append(list, t.Value)
+			case lblock:
+				key := "#" + strconv.Itoa(idx)
+				o.path = append(o.path, key)
+				ok := o.fn(Group, o.path, key, nil)
+				o.readBlock()
+				o.path = o.path[:len(o.path)-1]
+				if !ok {
+					o.setError(fmt.Errorf("walk function abort"))
+					return nil
+				}
+			}
 			t = o.nextToken()
 			switch t.Type {
 			default:
@@ -322,6 +336,9 @@ func (o *TParser) readBlock() {
 				ok = o.fn(typ, o.path, key, o.curValue)
 			case List:
 				list := o.readList()
+				if list == nil {
+					return
+				}
 				ok = o.fn(List, o.path, key, list)
 			case Group:
 				o.path = append(o.path, t.Value)
