@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"strconv"
+	"strings"
 )
 
 const runeEOF = '\uffff'
@@ -172,12 +173,18 @@ func (o *TParser) nextToken() tToken {
 			t.Value = "false"
 		case '"':
 			t.Type = str
+			p := '\x00'
 			r = o.nextRune()
-			for r != runeEOF && r != '"' {
+			for r != runeEOF {
+				if r == '"' && p != '\\' {
+					break
+				}
 				t.Value += string(r)
+				p = r
 				r = o.nextRune()
 				// fmt.Printf("str: %q\n", r)
 			}
+			t.Value = strings.Replace(t.Value, `\"`, `"`, -1)
 			o.nextRune()
 		case '+', '-', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9':
 			t.Type = number

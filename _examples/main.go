@@ -35,6 +35,7 @@ func main() {
 	"float": +0e45,
 	"null": null,
 	"objList": [ {"aaaa": 10, "bbb": 20}, {"xxx": 30 } ],
+	"test": "asd\"zxc"
 }`
 
 	p := walkjson.New()
